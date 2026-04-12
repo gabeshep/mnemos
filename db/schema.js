@@ -15,6 +15,7 @@ import {
   integer,
   unique,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -92,7 +93,9 @@ export const session = pgTable('session', {
   title:             text('title'),
   status:            sessionStatusEnum('status').notNull().default('active'),
   // Stored natively; Drizzle uses text array as a proxy — raw SQL migration uses uuid[].
-  seedAssetVersions: text('seed_asset_versions').array().notNull().default([]),
+  seedAssetVersions:     text('seed_asset_versions').array().notNull().default([]),
+  excludedAssetVersions: text('excluded_asset_versions').array().notNull().default(sql`'{}'`),
+  contextTokenCount:     integer('context_token_count'),
 });
 
 // ---------------------------------------------------------------------------

@@ -37,7 +37,32 @@ export interface Session {
   status: 'active' | 'closed';
   createdAt: string;
   seedAssetVersions: string[];
+  excludedAssetVersions: string[];
+  contextTokenCount: number | null;
   messages?: SessionMessage[];
+}
+
+export interface PublishedAssetVersion {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assetType: string;
+  estimatedTokens: number;
+  publishedAt: string;
+}
+
+export type ThresholdExceededResponse = {
+  status: 'threshold_exceeded';
+  breakdown: PublishedAssetVersion[];
+  totalTokens: number;
+  maxTokens: number;
+};
+
+export type CreateSessionResponse = { status: 'created'; session: Session } | ThresholdExceededResponse;
+
+export interface SendMessageResponse {
+  userMessage: SessionMessage;
+  assistantMessage: SessionMessage;
 }
 
 export interface CaptureResult {
