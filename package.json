@@ -13,9 +13,12 @@
     "test": "node --test $(find tests -name '*.test.js' | tr '\\n' ' ')"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.30.10",
     "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.11.5"
   },
   "devDependencies": {
