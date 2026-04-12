@@ -20,7 +20,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 import { pool } from '../db/index.js';
-import { withTenant } from '../lib/tenant-context.js';
+import { withTenant, getCurrentTenantId, withCurrentTenant, tenantMiddleware } from '../lib/tenant-context.js';
 
 // UUIDs for the two test tenants — generated fresh each run to avoid collisions
 let tenantAId;
@@ -128,4 +128,29 @@ test('raw pool query outside withTenant returns no rows (RLS blocks null tenant 
     0,
     'RLS must block all entity rows when no tenant context is set (fail-closed property)'
   );
+});
+
+// ---------------------------------------------------------------------------
+// Test 4: withCurrentTenant throws when no tenant context is active
+// ---------------------------------------------------------------------------
+test('withCurrentTenant throws when no tenant context is active', async () => {
+  await assert.rejects(
+    () => withCurrentTenant(async () => {}),
+    (err) => err.message === 'No tenant context active'
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Test 5: getCurrentTenantId returns correct value inside tenantMiddleware's next callback
+// ---------------------------------------------------------------------------
+test('getCurrentTenantId returns tenantId set by tenantMiddleware in the async chain', async () => {
+  const middleware = tenantMiddleware(() => tenantAId);
+  const req = {};
+  const res = { status: () => ({ json: () => {} }) };
+  await new Promise((resolve) => {
+    middleware(req, res, () => {
+      assert.equal(getCurrentTenantId(), tenantAId);
+      resolve();
+    });
+  });
 });
