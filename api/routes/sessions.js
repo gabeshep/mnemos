@@ -139,7 +139,7 @@ router.post('/', async (req, res) => {
       }
 
       // Insert session record
-      const createdBy = req.user?.id;
+      const createdBy = req.user?.userId;
       const [sessionRecord] = await tdb
         .insert(schema.session)
         .values({
