@@ -9,6 +9,7 @@
 
 import 'dotenv/config';
 import pg from 'pg';
+import bcrypt from 'bcryptjs';
 
 const { Client } = pg;
 
@@ -54,11 +55,12 @@ async function seed() {
       userId = existingUser.id;
       console.log(`[seed] User already exists: ${userId}`);
     } else {
+      const passwordHash = await bcrypt.hash('seed-password-dev', 12);
       const { rows: [newUser] } = await client.query(
-        `INSERT INTO "user" (tenant_id, email, role)
-         VALUES ($1, $2, 'admin')
+        `INSERT INTO "user" (tenant_id, email, role, password_hash)
+         VALUES ($1, $2, 'admin', $3)
          RETURNING id`,
-        [tenantId, SEED_EMAIL]
+        [tenantId, SEED_EMAIL, passwordHash]
       );
       userId = newUser.id;
       console.log(`[seed] Created user: ${userId}`);

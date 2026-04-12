@@ -7,6 +7,7 @@
 
 import 'dotenv/config';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import apiRouter from '../api/index.js';
 
 const app = express();
@@ -17,6 +18,7 @@ const PORT = process.env.PORT || 3000;
 // ---------------------------------------------------------------------------
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logging (lightweight — swap for a structured logger in production)
 app.use((req, _res, next) => {
@@ -42,11 +44,17 @@ app.use((err, _req, res, _next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Start
+// Start — only when executed directly (not imported by tests or other modules)
 // ---------------------------------------------------------------------------
 
-app.listen(PORT, () => {
-  console.log(`[mnemos] Server listening on port ${PORT}`);
-});
+import { fileURLToPath } from 'url';
+import { argv } from 'process';
+
+const isMain = argv[1] === fileURLToPath(import.meta.url);
+if (isMain) {
+  app.listen(PORT, () => {
+    console.log(`[mnemos] Server listening on port ${PORT}`);
+  });
+}
 
 export default app;

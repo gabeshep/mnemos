@@ -44,7 +44,8 @@ export const tenant = pgTable('tenant', {
 export const user = pgTable('user', {
   id:        uuid('id').primaryKey().defaultRandom(),
   tenantId:  uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
-  email:     text('email').notNull(),
+  email:        text('email').notNull(),
+  passwordHash: text('password_hash'),
   role:      userRoleEnum('role').notNull().default('editor'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

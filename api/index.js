@@ -2,12 +2,15 @@
  * API router — mounts all route modules under their base paths.
  *
  * Each sub-router is responsible for its own path prefix and validation.
- * All routes operate within a tenant context established by the middleware
- * in src/index.js before this router is reached.
+ * All routes (except /auth/login) operate within an authenticated tenant
+ * context established by requireAuth + tenantMiddleware.
  */
 
 import { Router } from 'express';
 import { tenantMiddleware } from '../lib/tenant-context.js';
+import { requireAuth } from '../lib/rbac.js';
+import authRouter, { loginHandler } from './routes/auth.js';
+import usersRouter from './routes/users.js';
 
 const router = Router();
 
@@ -16,18 +19,19 @@ router.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mnemos-api' });
 });
 
-// TODO: Replace with real auth session lookup before first production deployment.
-const resolveTenantId = (req) => req.headers['x-tenant-id'] ?? null;
-router.use(tenantMiddleware(resolveTenantId));
+// Public route — mount BEFORE global requireAuth
+router.post('/auth/login', loginHandler);
 
-// TODO: mount route modules as they are built out, e.g.:
-//   import tenantRoutes from './routes/tenants.js';
-//   import entityRoutes from './routes/entities.js';
-//   import assetRoutes  from './routes/assets.js';
-//   import sessionRoutes from './routes/sessions.js';
-//   router.use('/tenants',  tenantRoutes);
-//   router.use('/entities', entityRoutes);
-//   router.use('/assets',   assetRoutes);
-//   router.use('/sessions', sessionRoutes);
+// Global auth middleware — all routes below require a valid JWT cookie
+router.use(requireAuth);
+
+// Tenant context — derive tenantId from the authenticated JWT
+router.use(tenantMiddleware((req) => req.user?.tenantId ?? null));
+
+// Protected auth routes (logout, me)
+router.use('/auth', authRouter);
+
+// Resource routes
+router.use('/users', usersRouter);
 
 export default router;
