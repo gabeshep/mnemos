@@ -11,6 +11,10 @@ import { tenantMiddleware } from '../lib/tenant-context.js';
 import { requireAuth } from '../lib/rbac.js';
 import authRouter, { loginHandler } from './routes/auth.js';
 import usersRouter from './routes/users.js';
+import entitiesRouter from './routes/entities.js';
+import assetsRouter from './routes/assets.js';
+import capturesRouter from './routes/captures.js';
+import sessionsRouter from './routes/sessions.js';
 
 const router = Router();
 
@@ -33,5 +37,9 @@ router.use('/auth', authRouter);
 
 // Resource routes
 router.use('/users', usersRouter);
+router.use('/entities', entitiesRouter);
+router.use('/assets', assetsRouter);
+router.use('/captures', capturesRouter);
+router.use('/sessions', sessionsRouter);
 
 export default router;
