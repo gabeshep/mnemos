@@ -65,6 +65,13 @@ export interface SendMessageResponse {
   assistantMessage: SessionMessage;
 }
 
+export interface ApiError extends Error {
+  status: number;
+  code?: string;
+  retryable?: boolean;
+  retryAfter?: number | null;
+}
+
 export interface CaptureResult {
   capture: {
     id: string;

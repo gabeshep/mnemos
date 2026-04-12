@@ -13,6 +13,7 @@ import { withCurrentTenant } from '../../lib/tenant-context.js';
 import * as schema from '../../db/schema.js';
 import { buildInjectionPlan, MAX_ASSET_TOKENS } from '../../lib/token-counter.js';
 import { buildSystemPrompt, sendMessage } from '../../lib/claude-service.js';
+import { ClaudeApiError } from '../../lib/error-handler.js';
 
 const router = Router();
 
@@ -251,6 +252,13 @@ router.post('/:sessionId/messages', async (req, res) => {
         newUserMessage: content.trim(),
       });
     } catch (apiErr) {
+      if (apiErr instanceof ClaudeApiError) {
+        console.error('[sessions] Claude API error:', { code: apiErr.code, httpStatus: apiErr.httpStatus, retryable: apiErr.retryable });
+        if (apiErr.retryAfter != null) {
+          res.set('Retry-After', String(apiErr.retryAfter));
+        }
+        return res.status(apiErr.httpStatus).json({ error: apiErr.message, code: apiErr.code, retryable: apiErr.retryable, retryAfter: apiErr.retryAfter });
+      }
       console.error('[sessions] Claude API error:', apiErr);
       return res.status(502).json({ error: 'Claude API error', detail: apiErr.message });
     }
