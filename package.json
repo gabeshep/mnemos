@@ -2,5 +2,22 @@
   "name": "mnemos",
   "version": "0.0.1",
   "description": "AI-native marketing asset management platform",
-  "private": true
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate": "node db/migrate.js",
+    "seed": "node db/seed.js",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.30.10",
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.21.4"
+  }
 }
