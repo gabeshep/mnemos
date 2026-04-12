@@ -15,6 +15,7 @@ import entitiesRouter from './routes/entities.js';
 import assetsRouter from './routes/assets.js';
 import capturesRouter from './routes/captures.js';
 import sessionsRouter from './routes/sessions.js';
+import onboardingRouter from './routes/onboarding.js';
 
 const router = Router();
 
@@ -41,5 +42,6 @@ router.use('/entities', entitiesRouter);
 router.use('/assets', assetsRouter);
 router.use('/captures', capturesRouter);
 router.use('/sessions', sessionsRouter);
+router.use('/onboarding', onboardingRouter);
 
 export default router;

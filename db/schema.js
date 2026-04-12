@@ -135,6 +135,23 @@ export const sessionMessage = pgTable('session_message', {
 // capture
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// onboarding_state
+// ---------------------------------------------------------------------------
+
+export const onboardingState = pgTable('onboarding_state', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  tenantId:  uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+  entityId:  uuid('entity_id').references(() => entity.id, { onDelete: 'set null' }),
+  state:     jsonb('state').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// capture
+// ---------------------------------------------------------------------------
+
 export const capture = pgTable('capture', {
   id:                uuid('id').primaryKey().defaultRandom(),
   sessionId:         uuid('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
