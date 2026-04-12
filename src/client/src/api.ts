@@ -1,4 +1,4 @@
-import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse } from './types.ts';
+import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError } from './types.ts';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -8,9 +8,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const err = new Error((body as { error?: string }).error ?? `Request failed: ${res.status}`);
-    (err as Error & { status: number }).status = res.status;
+    const body = await res.json().catch(() => ({})) as { error?: string; code?: string; retryable?: boolean; retryAfter?: number | null };
+    const err = new Error(body.error ?? `Request failed: ${res.status}`) as ApiError;
+    err.status = res.status;
+    err.code = body.code;
+    err.retryable = body.retryable;
+    err.retryAfter = body.retryAfter;
     throw err;
   }
 

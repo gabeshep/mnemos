@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
-import type { Session, SessionMessage } from '../types.ts';
+import type { Session, SessionMessage, ApiError } from '../types.ts';
 import { CaptureModal } from '../components/CaptureModal.tsx';
+import { ErrorNotification } from '../components/ErrorNotification.tsx';
 
 interface SessionDetailPageProps {
   sessionId: string;
@@ -18,6 +19,9 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [sendErrorCode, setSendErrorCode] = useState<string | undefined>(undefined);
+  const [sendErrorRetryable, setSendErrorRetryable] = useState<boolean | undefined>(undefined);
+  const [sendErrorRetryAfter, setSendErrorRetryAfter] = useState<number | null | undefined>(undefined);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -49,13 +53,20 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
     if (!messageInput.trim() || sending) return;
     setSending(true);
     setSendError(null);
+    setSendErrorCode(undefined);
+    setSendErrorRetryable(undefined);
+    setSendErrorRetryAfter(undefined);
     const content = messageInput.trim();
     setMessageInput('');
     try {
       const result = await api.sendMessage(sessionId, content);
       setMessages(prev => [...prev, result.userMessage, result.assistantMessage]);
     } catch (err) {
-      setSendError((err as Error).message);
+      const apiErr = err as ApiError;
+      setSendError(apiErr.message);
+      setSendErrorCode(apiErr.code);
+      setSendErrorRetryable(apiErr.retryable);
+      setSendErrorRetryAfter(apiErr.retryAfter);
       // Restore input so user doesn't lose their message
       setMessageInput(content);
     } finally {
@@ -160,11 +171,18 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
         <div ref={messagesEndRef} />
       </div>
 
-      {sendError && (
-        <div className="mb-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {sendError}
-        </div>
-      )}
+      <ErrorNotification
+        error={sendError}
+        code={sendErrorCode}
+        retryable={sendErrorRetryable}
+        retryAfter={sendErrorRetryAfter}
+        onDismiss={() => {
+          setSendError(null);
+          setSendErrorCode(undefined);
+          setSendErrorRetryable(undefined);
+          setSendErrorRetryAfter(undefined);
+        }}
+      />
 
       {/* Message input */}
       {isActive && (
