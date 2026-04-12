@@ -1,15 +1,15 @@
 /**
- * Database connection — Drizzle ORM over node-postgres.
+ * Database connection — node-postgres pool.
  *
- * Exports a single `db` instance used throughout the application.
- * Tenant isolation is applied at the request layer via lib/tenant-context.js,
- * not here — keeping connection setup clean and single-purpose.
+ * NOTE: The `db` (Drizzle) instance is intentionally absent here.
+ * A per-request Drizzle instance is created inside `withTenant()` in
+ * lib/tenant-context.js, where it is bound to the tenant-scoped connection.
+ * All application queries MUST flow through `withTenant()` to ensure
+ * Row-Level Security is enforced correctly.
  */
 
 import 'dotenv/config';
 import pg from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from './schema.js';
 
 const { Pool } = pg;
 
@@ -22,5 +22,4 @@ pool.on('error', (err) => {
   console.error('[db] Unexpected pool error:', err);
 });
 
-export const db = drizzle(pool, { schema });
 export { pool };
