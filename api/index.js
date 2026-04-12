@@ -7,6 +7,7 @@
  */
 
 import { Router } from 'express';
+import { tenantMiddleware } from '../lib/tenant-context.js';
 
 const router = Router();
 
@@ -14,6 +15,10 @@ const router = Router();
 router.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mnemos-api' });
 });
+
+// TODO: Replace with real auth session lookup before first production deployment.
+const resolveTenantId = (req) => req.headers['x-tenant-id'] ?? null;
+router.use(tenantMiddleware(resolveTenantId));
 
 // TODO: mount route modules as they are built out, e.g.:
 //   import tenantRoutes from './routes/tenants.js';
