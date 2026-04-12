@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.ts';
 import type { Session } from '../types.ts';
+import { SessionInitiationModal } from '../components/SessionInitiationModal.tsx';
 
 interface SessionsPageProps {
   onSelectSession: (sessionId: string) => void;
@@ -10,6 +11,7 @@ export function SessionsPage({ onSelectSession }: SessionsPageProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showInitiationModal, setShowInitiationModal] = useState(false);
 
   useEffect(() => {
     api.getSessions()
@@ -17,6 +19,11 @@ export function SessionsPage({ onSelectSession }: SessionsPageProps) {
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function handleSessionCreated(sessionId: string) {
+    setShowInitiationModal(false);
+    onSelectSession(sessionId);
+  }
 
   if (loading) {
     return <div className="py-8 text-center text-sm text-gray-400">Loading sessions…</div>;
@@ -32,7 +39,16 @@ export function SessionsPage({ onSelectSession }: SessionsPageProps) {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Sessions</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Sessions</h1>
+        <button
+          onClick={() => setShowInitiationModal(true)}
+          className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          New Session
+        </button>
+      </div>
+
       {sessions.length === 0 && (
         <p className="text-sm text-gray-400">No sessions yet.</p>
       )}
@@ -64,6 +80,13 @@ export function SessionsPage({ onSelectSession }: SessionsPageProps) {
           </li>
         ))}
       </ul>
+
+      {showInitiationModal && (
+        <SessionInitiationModal
+          onClose={() => setShowInitiationModal(false)}
+          onSessionCreated={handleSessionCreated}
+        />
+      )}
     </div>
   );
 }

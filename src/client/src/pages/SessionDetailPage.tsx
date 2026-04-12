@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
 import type { Session, SessionMessage } from '../types.ts';
 import { CaptureModal } from '../components/CaptureModal.tsx';
@@ -10,17 +10,30 @@ interface SessionDetailPageProps {
 
 export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps) {
   const [session, setSession] = useState<Session | null>(null);
+  const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [captureContent, setCaptureContent] = useState<string | null>(null);
   const [captureSuccess, setCaptureSuccess] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.getSession(sessionId)
-      .then(setSession)
+      .then((s) => {
+        setSession(s);
+        setMessages(s.messages ?? []);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   function handleCaptureClick(msg: SessionMessage) {
     setCaptureContent(msg.content);
@@ -30,6 +43,31 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
   function handleCaptureSuccess() {
     setCaptureContent(null);
     setCaptureSuccess(true);
+  }
+
+  async function handleSendMessage() {
+    if (!messageInput.trim() || sending) return;
+    setSending(true);
+    setSendError(null);
+    const content = messageInput.trim();
+    setMessageInput('');
+    try {
+      const result = await api.sendMessage(sessionId, content);
+      setMessages(prev => [...prev, result.userMessage, result.assistantMessage]);
+    } catch (err) {
+      setSendError((err as Error).message);
+      // Restore input so user doesn't lose their message
+      setMessageInput(content);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSendMessage();
+    }
   }
 
   if (loading) {
@@ -48,10 +86,10 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
     return <p className="text-sm text-gray-400">Session not found.</p>;
   }
 
-  const messages = session.messages ?? [];
+  const isActive = session.status === 'active';
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <button
         onClick={onBack}
         className="mb-4 text-sm text-indigo-600 hover:underline"
@@ -59,7 +97,7 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
         ← Back to sessions
       </button>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold text-gray-900">
           {session.title ?? 'Untitled session'}
         </h1>
@@ -74,6 +112,13 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
         </span>
       </div>
 
+      {/* Excluded assets banner */}
+      {session.excludedAssetVersions && session.excludedAssetVersions.length > 0 && (
+        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          <strong>Context limit:</strong> {session.excludedAssetVersions.length} asset(s) were excluded from this session's context.
+        </div>
+      )}
+
       {captureSuccess && (
         <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
           Content captured as a draft asset version.
@@ -81,10 +126,10 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
       )}
 
       {messages.length === 0 && (
-        <p className="text-sm text-gray-400">No messages in this session.</p>
+        <p className="text-sm text-gray-400 mb-4">No messages in this session yet. Send a message to get started.</p>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-4 flex-1 overflow-y-auto mb-4">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -112,7 +157,36 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
+
+      {sendError && (
+        <div className="mb-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {sendError}
+        </div>
+      )}
+
+      {/* Message input */}
+      {isActive && (
+        <div className="border rounded-xl bg-white shadow-sm flex items-end gap-2 px-3 py-2">
+          <textarea
+            value={messageInput}
+            onChange={(e) => setMessageInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message… (Ctrl+Enter to send)"
+            rows={3}
+            disabled={sending}
+            className="flex-1 resize-none text-sm focus:outline-none disabled:opacity-50"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={sending || !messageInput.trim()}
+            className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          >
+            {sending ? 'Sending…' : 'Send'}
+          </button>
+        </div>
+      )}
 
       {captureContent !== null && session && (
         <CaptureModal
