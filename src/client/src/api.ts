@@ -1,4 +1,4 @@
-import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload, SessionSearchResult } from './types.ts';
+import type { Entity, Asset, AssetVersion, AssetDetail, CreateAssetResponse, VersionSummary, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload, SessionSearchResult } from './types.ts';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -24,11 +24,42 @@ export const api = {
   getEntities: (): Promise<Entity[]> =>
     request('/api/entities'),
 
-  getAssets: (entityId: string): Promise<Asset[]> =>
+  getAssets: (entityId: string): Promise<AssetDetail[]> =>
     request(`/api/entities/${entityId}/assets`),
 
   getAssetVersions: (assetId: string): Promise<AssetVersion[]> =>
     request(`/api/assets/${assetId}/versions`),
+
+  createAsset: (body: { entityId: string; name: string; assetType: string; description?: string }): Promise<CreateAssetResponse> =>
+    request('/api/assets', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getAsset: (assetId: string): Promise<AssetDetail> =>
+    request(`/api/assets/${assetId}`),
+
+  getAllAssetVersions: (assetId: string): Promise<VersionSummary[]> =>
+    request(`/api/assets/${assetId}/all-versions`),
+
+  getAssetVersion: (assetId: string, versionId: string): Promise<AssetVersion> =>
+    request(`/api/assets/${assetId}/versions/${versionId}`),
+
+  saveAssetVersion: (assetId: string, body: { content: string; notes?: string }): Promise<AssetVersion> =>
+    request(`/api/assets/${assetId}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  publishAssetVersion: (assetId: string, versionId: string): Promise<{ published: AssetVersion; archived: AssetVersion | null }> =>
+    request(`/api/assets/${assetId}/versions/${versionId}/publish`, {
+      method: 'POST',
+    }),
+
+  demoteAssetVersion: (assetId: string, versionId: string): Promise<AssetVersion> =>
+    request(`/api/assets/${assetId}/versions/${versionId}/demote`, {
+      method: 'POST',
+    }),
 
   getSessions: (): Promise<Session[]> =>
     request('/api/sessions'),

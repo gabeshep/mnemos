@@ -21,6 +21,31 @@ export interface AssetVersion {
   publishedAt: string | null;
   createdAt: string;
   notes: string | null;
+  sourceSessionId: string | null;
+}
+
+export interface AssetDetail extends Asset {
+  latestVersion: {
+    id: string;
+    versionNumber: number;
+    state: 'draft' | 'published' | 'archived';
+    createdAt: string;
+  } | null;
+}
+
+export interface CreateAssetResponse {
+  asset: Asset;
+  assetVersion: AssetVersion;
+}
+
+export interface VersionSummary {
+  id: string;
+  assetId: string;
+  versionNumber: number;
+  state: 'draft' | 'published' | 'archived';
+  createdAt: string;
+  notes: string | null;
+  sourceSessionId: string | null;
 }
 
 export interface SessionMessage {
