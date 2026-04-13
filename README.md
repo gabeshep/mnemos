@@ -17,6 +17,84 @@ Mnemos closes that loop.
 
 ---
 
+## Local Development Setup
+
+Follow these steps to run Mnemos on your Mac.
+
+### Prerequisites
+
+- **Node.js 18 or higher** — check with `node --version`
+- **PostgreSQL 15 or higher** — check with `psql --version` (must be running locally)
+
+### Steps
+
+1. **Install dependencies**
+
+   From the project folder in your terminal, run:
+
+   ```
+   npm install
+   ```
+
+2. **Configure environment**
+
+   Copy the example environment file:
+
+   ```
+   cp .env.example .env
+   ```
+
+   Open `.env` in a text editor and fill in your values. At minimum you need:
+   - `DATABASE_URL` — your local Postgres connection string
+   - `JWT_SECRET` — any long random string (32+ characters)
+   - `ANTHROPIC_API_KEY` — your API key from [console.anthropic.com](https://console.anthropic.com)
+
+3. **Create the database**
+
+   Make sure Postgres is running, then create a database named `mnemos`:
+
+   ```
+   createdb mnemos
+   ```
+
+4. **Run database migrations**
+
+   Set up the database tables by running:
+
+   ```
+   npm run migrate
+   ```
+
+5. **Seed the database**
+
+   Load the initial data:
+
+   ```
+   npm run seed
+   ```
+
+6. **Start the development server**
+
+   ```
+   npm run dev
+   ```
+
+   The server will restart automatically when you change files.
+
+7. **Verify it is running**
+
+   In a new terminal window, run:
+
+   ```
+   curl http://localhost:3000/api/health
+   ```
+
+   You should see a JSON response confirming the server is up.
+
+> **Note:** If you add a new environment variable to the application code, update `.env.example` so other contributors know about it.
+
+---
+
 ## Who It Is For
 
 **Primary (v1):** PermaShip marketing org — internal use.  
