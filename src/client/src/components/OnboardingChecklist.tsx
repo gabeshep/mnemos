@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api.ts';
 import { useOnboarding } from '../hooks/useOnboarding.ts';
 import { OnboardingStep } from './OnboardingStep.tsx';
+import { SupportFallback } from './SupportFallback.tsx';
 
 interface ChecklistItem {
   label: string;
@@ -17,14 +18,17 @@ interface OnboardingChecklistProps {
 export function OnboardingChecklist({ items, onAllComplete }: OnboardingChecklistProps) {
   const [flagsLoaded, setFlagsLoaded] = useState(false);
   const [inlineErrorsEnabled, setInlineErrorsEnabled] = useState(false);
+  const [supportFallbackEnabled, setSupportFallbackEnabled] = useState(false);
 
   useEffect(() => {
     api.getFlags()
       .then((flags) => {
         setInlineErrorsEnabled(flags.onboarding_inline_errors);
+        setSupportFallbackEnabled(flags.onboarding_support_fallback);
       })
       .catch(() => {
         setInlineErrorsEnabled(false);
+        setSupportFallbackEnabled(false);
       })
       .finally(() => {
         setFlagsLoaded(true);
@@ -32,6 +36,8 @@ export function OnboardingChecklist({ items, onAllComplete }: OnboardingChecklis
   }, []);
 
   const { steps, executeStep, retryStep } = useOnboarding(items.length, inlineErrorsEnabled);
+
+  const stuckStep = steps.findIndex((s) => s.consecutiveFailures >= 2);
 
   useEffect(() => {
     if (steps.length > 0 && steps.every((s) => s.status === 'complete')) {
@@ -71,6 +77,12 @@ export function OnboardingChecklist({ items, onAllComplete }: OnboardingChecklis
           onRetry={() => retryStep(i)}
         />
       ))}
+      {supportFallbackEnabled && stuckStep !== -1 && (
+        <SupportFallback
+          stepIndex={stuckStep}
+          errorCode={steps[stuckStep].errorStatus}
+        />
+      )}
     </div>
   );
 }

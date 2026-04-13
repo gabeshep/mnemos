@@ -76,6 +76,13 @@ export type OnboardingStepStatus = 'incomplete' | 'loading' | 'complete' | 'erro
 
 export interface FeatureFlags {
   onboarding_inline_errors: boolean;
+  onboarding_support_fallback: boolean;
+}
+
+export interface VocReportPayload {
+  stepIndex: number;
+  errorCode?: number;
+  description: string;
 }
 
 export interface CaptureResult {

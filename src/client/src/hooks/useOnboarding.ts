@@ -7,10 +7,11 @@ interface StepEntry {
   status: OnboardingStepStatus;
   retryPayload?: { uuid: string; state: Record<string, unknown> };
   errorStatus?: number;
+  consecutiveFailures: number;
 }
 
 function makeInitialSteps(count: number): StepEntry[] {
-  return Array.from({ length: count }, () => ({ status: 'incomplete' as OnboardingStepStatus }));
+  return Array.from({ length: count }, () => ({ status: 'incomplete' as OnboardingStepStatus, consecutiveFailures: 0 }));
 }
 
 export function useOnboarding(count: number, inlineErrorsEnabled: boolean) {
@@ -29,16 +30,36 @@ export function useOnboarding(count: number, inlineErrorsEnabled: boolean) {
 
     try {
       await api.saveOnboardingState(uuid, state);
-      setStep(index, { status: 'complete' });
+      setStep(index, { status: 'complete', consecutiveFailures: 0 });
     } catch (err: unknown) {
       const errorStatus = (err as { status?: number }).status;
       const retryPayload = { uuid, state };
 
       if (inlineErrorsEnabled) {
-        setStep(index, { status: 'error', retryPayload, errorStatus });
+        setSteps((prev) => {
+          const next = [...prev];
+          next[index] = {
+            ...next[index],
+            status: 'error',
+            retryPayload,
+            errorStatus,
+            consecutiveFailures: (next[index]?.consecutiveFailures ?? 0) + 1,
+          };
+          return next;
+        });
         track('onboarding_error_displayed', { stepIndex: index, errorStatus });
       } else {
-        setStep(index, { status: 'incomplete', retryPayload, errorStatus });
+        setSteps((prev) => {
+          const next = [...prev];
+          next[index] = {
+            ...next[index],
+            status: 'incomplete',
+            retryPayload,
+            errorStatus,
+            consecutiveFailures: (next[index]?.consecutiveFailures ?? 0) + 1,
+          };
+          return next;
+        });
       }
     }
   }, [inlineErrorsEnabled, setStep]);
@@ -51,5 +72,5 @@ export function useOnboarding(count: number, inlineErrorsEnabled: boolean) {
     }
   }, [steps, executeStep]);
 
-  return { steps, executeStep, retryStep };
+  return { steps, executeStep, retryStep, consecutiveFailures: steps.map((s) => s.consecutiveFailures) };
 }
