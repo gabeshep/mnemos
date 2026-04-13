@@ -35,6 +35,207 @@ subagents:
           states are managed in a parent component or custom hook that is clearly
           visible in the PR diff, do not flag it — only flag cases where no
           visible state handling exists anywhere in the async call chain.
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
+
+  implement:
+    additional_rules:
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
+
+  api_builder:
+    additional_rules:
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
+
+  auth_engineer:
+    additional_rules:
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
+
+  schema_architect:
+    additional_rules:
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
+
+  migration_engineer:
+    additional_rules:
+      - rule_id: "tenant-isolation-guardrails"
+        severity: "required_changes"
+        scope: "api/ lib/ db/"
+        applies_to: "Express route handlers and database queries on tenant-scoped tables"
+        description: >
+          Every query against a tenant-scoped table (entity, asset, asset_version,
+          session, session_message, capture, user, onboarding_state, idempotency_record)
+          MUST be executed inside withCurrentTenant() or withTenant() from
+          lib/tenant-context.js. Bare pool.query(), db.select(), db.insert(),
+          db.update(), or db.delete() calls on these tables outside a withTenant
+          context are PROHIBITED — Postgres RLS will block them at runtime and they
+          represent a latent IDOR vulnerability. The tenant table is explicitly exempt
+          because it has no RLS policy and is intentionally queried outside withTenant
+          during login (slug → tenantId resolution only).
+        anti_pattern: >
+          pool.query('SELECT * FROM entity WHERE id = $1', [entityId])
+          // Missing withTenant context — RLS will return 0 rows or error in production.
+        required_pattern: >
+          withCurrentTenant(async (db) =>
+            db.select().from(entity).where(eq(entity.id, entityId))
+          )
+        exemptions:
+          - "Queries against the tenant table (no RLS policy, used for slug lookup at login)"
+          - "Migration scripts in db/migrations/ (run as superuser outside RLS)"
+          - "Seed scripts in db/seed.js (run as superuser outside RLS)"
+          - "Frontend files and non-database utility code"
+        guidance: >
+          Before flagging, trace the full call chain. If the route handler calls a
+          helper function that internally calls withTenant(), do not flag it. Only
+          flag cases where no withTenant wrapper exists anywhere in the chain between
+          the route handler and the database query.
 
   prd_generation:
     acceptance_criteria_appendix:
@@ -99,3 +300,83 @@ evaluation:
       rationale: >
         CSS/style-only change with no async operations introduced — must not
         be flagged to avoid review bloat (explicit exemption applies).
+  verify_authz_rls:
+    description: >
+      Blocking PR evaluation gate that scans code diffs for missing tenant
+      isolation on queries against Mnemos tenant-scoped tables. Motivated by
+      CVSS 7.5 AuthZ bypass discovered in onboarding API.
+    severity: "block"
+    kickback_target: "implement"
+    max_retry: 2
+    escalation_on_limit_exceeded: "human_review"
+    prompt: >
+      You are a security reviewer specializing in multi-tenant SaaS authorization
+      vulnerabilities. Examine the provided code diff carefully.
+
+      TENANT-SCOPED TABLES (all have Postgres RLS policies enforced by
+      current_tenant_id()):
+        entity, asset, asset_version, session, session_message, capture,
+        user, onboarding_state, idempotency_record
+
+      EXEMPT TABLE (no RLS, intentionally queried outside withTenant):
+        tenant (used only for slug → tenantId resolution at login)
+
+      REQUIRED PATTERN:
+        All queries against tenant-scoped tables MUST be executed inside
+        withCurrentTenant(fn) or withTenant(tenantId, fn) from
+        lib/tenant-context.js. The AsyncLocalStorage context propagates the
+        tenant UUID to Postgres via SET LOCAL app.current_tenant_id.
+
+      PROHIBITED PATTERNS:
+        - pool.query(...) on a tenant-scoped table without a wrapping withTenant call
+        - db.select() / db.insert() / db.update() / db.delete() (Drizzle ORM)
+          on a tenant-scoped table without a wrapping withTenant call
+
+      EVALUATION INSTRUCTIONS:
+        1. For each added or modified function in the diff, trace the full call
+           chain from route handler to database query.
+        2. If any query targets a tenant-scoped table and NO withTenant or
+           withCurrentTenant wrapper exists anywhere in the chain, return "flag".
+        3. If the query is against the tenant table only, return "pass".
+        4. If all tenant-scoped queries are correctly wrapped, return "pass".
+
+      OUTPUT FORMAT (JSON):
+        {
+          "outcome": "flag" | "pass",
+          "violations": [
+            {
+              "file": "<path>",
+              "line": <number>,
+              "table": "<table_name>",
+              "code_snippet": "<offending line>",
+              "reason": "<one-sentence explanation>"
+            }
+          ]
+        }
+        Return violations as an empty array when outcome is "pass".
+    fixtures:
+      - fixture_id: "rls-001"
+        name: "Direct pool.query on entity table without withTenant"
+        description: >
+          A PR adds a new GET /api/entities/:id route that executes
+          pool.query('SELECT * FROM entity WHERE id = $1', [req.params.id])
+          directly in the route handler body, with no withTenant or
+          withCurrentTenant wrapper anywhere in the call chain.
+        expected_outcome: "flag"
+        rationale: >
+          Bare pool.query on tenant-scoped table without withTenant context.
+          Postgres RLS will return 0 rows for any non-superuser connection,
+          and represents a latent IDOR: if the connection role ever changes,
+          cross-tenant rows become visible. Exactly the pattern that produced
+          the CVSS 7.5 onboarding bypass.
+      - fixture_id: "rls-002"
+        name: "Correct withCurrentTenant usage on asset query"
+        description: >
+          A PR adds a GET /api/assets/:id route that wraps its Drizzle query in
+          withCurrentTenant(async (db) => db.select().from(asset)
+          .where(eq(asset.id, assetId))), matching the established pattern
+          in api/routes/assets.js.
+        expected_outcome: "pass"
+        rationale: >
+          Query is correctly scoped within withCurrentTenant. RLS will enforce
+          tenant boundary at the Postgres layer. No violation.
