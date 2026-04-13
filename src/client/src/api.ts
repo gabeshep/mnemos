@@ -98,6 +98,12 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
 
+  updateSessionTitle: (sessionId: string, title: string): Promise<Session> =>
+    request(`/api/sessions/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
+
   saveOnboardingState: (uuid: string, state: Record<string, unknown>): Promise<{ id: string }> =>
     request(`/api/onboarding/state/${uuid}`, {
       method: 'PUT',

@@ -7,12 +7,13 @@ interface CaptureModalProps {
   content: string;
   onClose: () => void;
   onSuccess: () => void;
+  entityId?: string;
 }
 
 type Step = 'pick-entity' | 'pick-asset' | 'confirm';
 
-export function CaptureModal({ sessionId, content, onClose, onSuccess }: CaptureModalProps) {
-  const [step, setStep] = useState<Step>('pick-entity');
+export function CaptureModal({ sessionId, content, onClose, onSuccess, entityId }: CaptureModalProps) {
+  const [step, setStep] = useState<Step>(entityId ? 'pick-asset' : 'pick-entity');
   const [entities, setEntities] = useState<Entity[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
@@ -22,17 +23,27 @@ export function CaptureModal({ sessionId, content, onClose, onSuccess }: Capture
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load entities on mount
+  // Load entities on mount (only needed when no entityId provided)
   useEffect(() => {
+    if (entityId) return;
     setLoading(true);
     api.getEntities()
       .then(setEntities)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [entityId]);
 
-  // Load assets when entity is selected
+  // Load assets when entity is selected, or on mount when entityId is provided
   useEffect(() => {
+    if (entityId) {
+      setLoading(true);
+      setAssets([]);
+      api.getAssets(entityId)
+        .then(setAssets)
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setLoading(false));
+      return;
+    }
     if (!selectedEntity) return;
     setLoading(true);
     setAssets([]);
@@ -40,7 +51,7 @@ export function CaptureModal({ sessionId, content, onClose, onSuccess }: Capture
       .then(setAssets)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [selectedEntity]);
+  }, [selectedEntity, entityId]);
 
   function handleEntitySelect(entity: Entity) {
     setSelectedEntity(entity);

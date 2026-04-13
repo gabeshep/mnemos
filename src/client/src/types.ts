@@ -65,6 +65,17 @@ export interface Session {
   excludedAssetVersions: string[];
   contextTokenCount: number | null;
   messages?: SessionMessage[];
+  captureCount?: number;
+  seedVersionSummary?: SeedVersionSummary[];
+  seedVersionDetails?: SeedVersionSummary[];
+}
+
+export interface SeedVersionSummary {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assetType: string;
+  versionNumber: number;
 }
 
 export interface PublishedAssetVersion {
@@ -72,6 +83,7 @@ export interface PublishedAssetVersion {
   assetId: string;
   assetName: string;
   assetType: string;
+  versionNumber: number;
   estimatedTokens: number;
   publishedAt: string;
 }

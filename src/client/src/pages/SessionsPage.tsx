@@ -128,19 +128,29 @@ export function SessionsPage({ onSelectSession }: SessionsPageProps) {
                     <span className="font-medium text-gray-900">
                       {session.title ?? 'Untitled session'}
                     </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        session.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {session.status}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500">
+                        {session.captureCount ?? 0} capture{(session.captureCount ?? 0) !== 1 ? 's' : ''}
+                      </span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          session.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {session.status}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {new Date(session.createdAt).toLocaleString()}
                   </p>
+                  {session.seedVersionSummary && session.seedVersionSummary.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {session.seedVersionSummary.map(v => `${v.assetName} v${v.versionNumber}`).join(', ')}
+                    </p>
+                  )}
                 </button>
               </li>
             ))}
