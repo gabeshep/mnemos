@@ -10,6 +10,7 @@
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
     "db:generate": "drizzle-kit generate",
+    "docs:generate": "node scripts/generate-api-docs.js",
     "test": "node --test $(find tests -name '*.test.js' | tr '\\n' ' ')"
   },
   "dependencies": {
