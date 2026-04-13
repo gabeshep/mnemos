@@ -1,4 +1,10 @@
-import type { Entity, Asset, AssetVersion, AssetDetail, CreateAssetResponse, VersionSummary, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload, SessionSearchResult } from './types.ts';
+import type { Entity, Asset, AssetVersion, AssetDetail, CreateAssetResponse, VersionSummary, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload, SessionSearchResult, User } from './types.ts';
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: () => void) {
+  unauthorizedHandler = fn;
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -9,6 +15,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: string; code?: string; retryable?: boolean; retryAfter?: number | null };
+    if (res.status === 401) {
+      unauthorizedHandler?.();
+    }
     const err = new Error(body.error ?? `Request failed: ${res.status}`) as ApiError;
     err.status = res.status;
     err.code = body.code;
@@ -124,4 +133,16 @@ export const api = {
     if (entityId) params.set('entityId', entityId);
     return request(`/api/sessions/search?${params}`);
   },
+
+  login: (body: { email: string; password: string; tenantSlug: string }): Promise<User> =>
+    request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  logout: (): Promise<void> =>
+    request('/api/auth/logout', { method: 'POST' }),
+
+  me: (): Promise<User> =>
+    request('/api/auth/me'),
 };

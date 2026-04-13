@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { Layout } from './components/Layout.tsx';
+import { LoginPage } from './pages/LoginPage.tsx';
 import { SessionsPage } from './pages/SessionsPage.tsx';
 import { SessionDetailPage } from './pages/SessionDetailPage.tsx';
 import { AssetsPage } from './pages/AssetsPage.tsx';
@@ -11,8 +13,21 @@ type View =
   | { name: 'assets' }
   | { name: 'asset-editor'; assetId: string };
 
-export default function App() {
+function AppShell() {
+  const { user, isLoading, logout } = useAuth();
   const [view, setView] = useState<View>({ name: 'sessions' });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
 
   function handleNavigate(viewName: string) {
     if (viewName === 'sessions') setView({ name: 'sessions' });
@@ -20,7 +35,7 @@ export default function App() {
   }
 
   return (
-    <Layout onNavigate={handleNavigate}>
+    <Layout onNavigate={handleNavigate} onLogout={logout}>
       {view.name === 'sessions' && (
         <SessionsPage
           onSelectSession={(sessionId) =>
@@ -46,5 +61,13 @@ export default function App() {
         />
       )}
     </Layout>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   );
 }
