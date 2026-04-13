@@ -16,11 +16,12 @@
  */
 
 import { Router } from 'express';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { pool } from '../../db/index.js';
 import { withCurrentTenant } from '../../lib/tenant-context.js';
 import * as schema from '../../db/schema.js';
 import { onboardingTransitionTotal } from '../../lib/metrics.js';
+import { idempotencyMiddleware } from '../../lib/idempotency.js';
 
 const router = Router();
 
@@ -36,11 +37,11 @@ function redactBody(value) {
 }
 
 // PUT /onboarding/state/:uuid
-router.put('/state/:uuid', async (req, res) => {
+router.put('/state/:uuid', idempotencyMiddleware(), async (req, res) => {
   const startMs = Date.now();
   const { uuid } = req.params;
   const callerTenantId = req.tenantId;
-  const { state } = req.body || {};
+  const { state, version: clientVersion } = req.body || {};
 
   // Basic UUID format validation — prevents malformed input reaching the DB
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,21 +53,38 @@ router.put('/state/:uuid', async (req, res) => {
     return res.status(400).json({ error: 'state must be a JSON object' });
   }
 
+  if (!Number.isInteger(clientVersion) || clientVersion < 1) {
+    return res.status(400).json({ error: 'version must be a positive integer' });
+  }
+
   try {
     // Attempt the UPDATE inside an RLS-scoped transaction.
-    // The WHERE clause explicitly filters by both id AND tenant_id so that
-    // cross-tenant UUIDs produce 0 rows (defence-in-depth beyond RLS).
-    const updated = await withCurrentTenant(async (_client, tdb) => {
-      return tdb
+    // The WHERE clause explicitly filters by id, tenant_id, AND version so that
+    // cross-tenant UUIDs and stale versions produce 0 rows (defence-in-depth beyond RLS).
+    const { updated, current } = await withCurrentTenant(async (_client, tdb) => {
+      const updatedRows = await tdb
         .update(schema.onboardingState)
-        .set({ state, updatedAt: new Date() })
+        .set({ state, updatedAt: new Date(), version: sql`version + 1` })
         .where(
           and(
             eq(schema.onboardingState.id, uuid),
-            eq(schema.onboardingState.tenantId, callerTenantId)
+            eq(schema.onboardingState.tenantId, callerTenantId),
+            eq(schema.onboardingState.version, clientVersion)
           )
         )
-        .returning({ id: schema.onboardingState.id, tenantId: schema.onboardingState.tenantId });
+        .returning({ id: schema.onboardingState.id, version: schema.onboardingState.version });
+
+      if (updatedRows.length === 0) {
+        // Check if row exists under RLS scope (same tenant) to distinguish
+        // optimistic lock conflict from cross-tenant / missing record
+        const currentRows = await tdb
+          .select({ id: schema.onboardingState.id, version: schema.onboardingState.version })
+          .from(schema.onboardingState)
+          .where(and(eq(schema.onboardingState.id, uuid), eq(schema.onboardingState.tenantId, callerTenantId)));
+        return { updated: updatedRows, current: currentRows };
+      }
+
+      return { updated: updatedRows, current: [] };
     });
 
     if (updated.length > 0) {
@@ -80,7 +98,13 @@ router.put('/state/:uuid', async (req, res) => {
         latencyMs: Date.now() - startMs,
         ts: new Date().toISOString(),
       }));
-      return res.json({ id: updated[0].id });
+      return res.json({ id: updated[0].id, version: updated[0].version });
+    }
+
+    // Row found under RLS scope → optimistic lock conflict
+    if (current.length > 0) {
+      onboardingTransitionTotal.inc({ outcome: 'optimistic_lock_conflict' });
+      return res.status(409).json({ error: 'Conflict', currentVersion: current[0].version });
     }
 
     // No rows updated. Determine whether the UUID is cross-tenant or missing.

@@ -30,7 +30,7 @@ import app from '../src/index.js';
 let server;
 let baseUrl;
 
-function request(method, path, { body, cookie } = {}) {
+function request(method, path, { body, cookie, headers } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, baseUrl);
     const options = {
@@ -41,6 +41,7 @@ function request(method, path, { body, cookie } = {}) {
       headers: { 'Content-Type': 'application/json' },
     };
     if (cookie) options.headers['Cookie'] = cookie;
+    if (headers) Object.assign(options.headers, headers);
 
     const req = http.request(options, (res) => {
       let data = '';
@@ -160,7 +161,8 @@ test('success counter increments after successful onboarding state PUT', async (
   // Make a successful PUT to onboarding state
   const putRes = await request('PUT', `/api/onboarding/state/${stateId}`, {
     cookie,
-    body: { state: { step: 1, completed: false } },
+    body: { state: { step: 1, completed: false }, version: 1 },
+    headers: { 'Idempotency-Key': `metrics-test-${Date.now()}` },
   });
   assert.equal(putRes.status, 200, `Expected 200 from PUT, got ${putRes.status}: ${putRes.body}`);
 

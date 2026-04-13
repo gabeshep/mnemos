@@ -6,6 +6,11 @@
  *   2. 403 Forbidden — cross-tenant probe (record owned by another tenant)
  *   3. 404 Not Found — UUID does not exist in any tenant
  *   4. Audit log entry is written on 403
+ *   5. 400 — Missing Idempotency-Key header
+ *   6. 400 — Missing version in body
+ *   7. 400 — version=0 is invalid
+ *   8. 200 — Duplicate Idempotency-Key returns cached response
+ *   9. 409 — Stale version returns Conflict
  *
  * Requires DATABASE_URL and JWT_SECRET to be set.
  * Run with: node --test tests/onboarding.test.js
@@ -13,6 +18,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 if (!process.env.DATABASE_URL) {
   console.warn('[onboarding.test] DATABASE_URL not set — skipping all tests.');
@@ -36,7 +42,7 @@ import app from '../src/index.js';
 let server;
 let baseUrl;
 
-function request(method, path, { body, cookie } = {}) {
+function request(method, path, { body, cookie, headers } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, baseUrl);
     const options = {
@@ -47,6 +53,7 @@ function request(method, path, { body, cookie } = {}) {
       headers: { 'Content-Type': 'application/json' },
     };
     if (cookie) options.headers['Cookie'] = cookie;
+    if (headers) Object.assign(options.headers, headers);
 
     const req = http.request(options, (res) => {
       let data = '';
@@ -165,11 +172,13 @@ test('PUT /onboarding/state/:uuid same-tenant returns 200', async () => {
   const stateAId = global._stateAId;
   const res = await request('PUT', `/api/onboarding/state/${stateAId}`, {
     cookie: cookieA,
-    body: { state: { step: 2, completed: true } },
+    body: { state: { step: 2, completed: true }, version: 1 },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
   });
 
   assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(res.body)}`);
   assert.equal(res.body.id, stateAId);
+  assert.equal(res.body.version, 2);
 });
 
 // ---------------------------------------------------------------------------
@@ -180,7 +189,8 @@ test('PUT /onboarding/state/:uuid cross-tenant returns 403', async () => {
   // cookieA is tenant A; stateBId belongs to tenant B
   const res = await request('PUT', `/api/onboarding/state/${stateBId}`, {
     cookie: cookieA,
-    body: { state: { hacked: true } },
+    body: { state: { hacked: true }, version: 1 },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
   });
 
   assert.equal(res.status, 403, `Expected 403, got ${res.status}: ${JSON.stringify(res.body)}`);
@@ -195,7 +205,8 @@ test('PUT /onboarding/state/:uuid missing UUID returns 404', async () => {
   const nonExistentId = '00000000-0000-0000-0000-000000000000';
   const res = await request('PUT', `/api/onboarding/state/${nonExistentId}`, {
     cookie: cookieA,
-    body: { state: { step: 1 } },
+    body: { state: { step: 1 }, version: 1 },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
   });
 
   assert.equal(res.status, 404, `Expected 404, got ${res.status}: ${JSON.stringify(res.body)}`);
@@ -218,7 +229,8 @@ test('PUT /onboarding/state/:uuid cross-tenant writes audit log entry', async ()
   try {
     await request('PUT', `/api/onboarding/state/${stateBId}`, {
       cookie: cookieA,
-      body: { state: { sensitive: 'data', token: 'should-be-redacted' } },
+      body: { state: { sensitive: 'data', token: 'should-be-redacted' }, version: 1 },
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
     });
   } finally {
     console.log = originalLog;
@@ -237,4 +249,110 @@ test('PUT /onboarding/state/:uuid cross-tenant writes audit log entry', async ()
   assert.ok(!bodyStr.includes('should-be-redacted'), 'Token value must not appear in audit log');
   assert.ok(!bodyStr.includes('data'), 'Sensitive value must not appear in audit log');
   assert.ok(bodyStr.includes('[REDACTED]'), 'Redacted marker must appear in audit log body');
+});
+
+// ---------------------------------------------------------------------------
+// Test 5: missing Idempotency-Key header returns 400
+// ---------------------------------------------------------------------------
+
+test('PUT /onboarding/state/:uuid missing Idempotency-Key header returns 400', async () => {
+  const stateAId = global._stateAId;
+  const res = await request('PUT', `/api/onboarding/state/${stateAId}`, {
+    cookie: cookieA,
+    body: { state: { step: 1 }, version: 1 },
+  });
+
+  assert.equal(res.status, 400, `Expected 400, got ${res.status}: ${JSON.stringify(res.body)}`);
+  assert.equal(res.body.error, 'Idempotency-Key header is required');
+});
+
+// ---------------------------------------------------------------------------
+// Test 6: missing version in body returns 400
+// ---------------------------------------------------------------------------
+
+test('PUT /onboarding/state/:uuid missing version returns 400', async () => {
+  const stateAId = global._stateAId;
+  const res = await request('PUT', `/api/onboarding/state/${stateAId}`, {
+    cookie: cookieA,
+    body: { state: { step: 1 } },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  });
+
+  assert.equal(res.status, 400, `Expected 400, got ${res.status}: ${JSON.stringify(res.body)}`);
+  assert.equal(res.body.error, 'version must be a positive integer');
+});
+
+// ---------------------------------------------------------------------------
+// Test 7: version=0 returns 400
+// ---------------------------------------------------------------------------
+
+test('PUT /onboarding/state/:uuid version=0 returns 400', async () => {
+  const stateAId = global._stateAId;
+  const res = await request('PUT', `/api/onboarding/state/${stateAId}`, {
+    cookie: cookieA,
+    body: { state: { step: 1 }, version: 0 },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  });
+
+  assert.equal(res.status, 400, `Expected 400, got ${res.status}: ${JSON.stringify(res.body)}`);
+  assert.equal(res.body.error, 'version must be a positive integer');
+});
+
+// ---------------------------------------------------------------------------
+// Test 8: duplicate Idempotency-Key returns cached response (200)
+// ---------------------------------------------------------------------------
+
+test('PUT /onboarding/state/:uuid duplicate Idempotency-Key returns cached response', async () => {
+  // Insert a fresh record for tenant A so its version is 1 and unaffected by Test 1
+  const freshRes = await pool.query(
+    `INSERT INTO onboarding_state (tenant_id, state) VALUES ($1, $2) RETURNING id`,
+    [tenantAId, JSON.stringify({ step: 0 })]
+  );
+  const freshStateId = freshRes.rows[0].id;
+
+  const idempotencyKey = crypto.randomUUID();
+
+  // First request — should succeed with version: 2
+  const res1 = await request('PUT', `/api/onboarding/state/${freshStateId}`, {
+    cookie: cookieA,
+    body: { state: { step: 1 }, version: 1 },
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+
+  assert.equal(res1.status, 200, `First request: Expected 200, got ${res1.status}: ${JSON.stringify(res1.body)}`);
+  assert.equal(res1.body.id, freshStateId);
+  assert.equal(res1.body.version, 2);
+
+  // Second request with SAME idempotency key — should return cached response
+  const res2 = await request('PUT', `/api/onboarding/state/${freshStateId}`, {
+    cookie: cookieA,
+    body: { state: { step: 99 }, version: 1 },
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+
+  assert.equal(res2.status, 200, `Second request: Expected 200, got ${res2.status}: ${JSON.stringify(res2.body)}`);
+  assert.deepEqual(res2.body, res1.body, 'Cached response must match the first response');
+});
+
+// ---------------------------------------------------------------------------
+// Test 9: stale version returns 409 Conflict
+// ---------------------------------------------------------------------------
+
+test('PUT /onboarding/state/:uuid stale version returns 409 Conflict', async () => {
+  // Insert a fresh record for tenant A (DB version starts at 1)
+  const freshRes = await pool.query(
+    `INSERT INTO onboarding_state (tenant_id, state) VALUES ($1, $2) RETURNING id`,
+    [tenantAId, JSON.stringify({ step: 0 })]
+  );
+  const freshStateId = freshRes.rows[0].id;
+
+  const res = await request('PUT', `/api/onboarding/state/${freshStateId}`, {
+    cookie: cookieA,
+    body: { state: { step: 1 }, version: 99 },
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  });
+
+  assert.equal(res.status, 409, `Expected 409, got ${res.status}: ${JSON.stringify(res.body)}`);
+  assert.equal(res.body.error, 'Conflict');
+  assert.equal(res.body.currentVersion, 1);
 });
