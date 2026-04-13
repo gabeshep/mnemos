@@ -18,6 +18,8 @@ import sessionsRouter from './routes/sessions.js';
 import onboardingRouter from './routes/onboarding.js';
 import flagsHandler from './routes/flags.js';
 import telemetryRouter from './routes/telemetry.js';
+import metricsRouter from './routes/metrics.js';
+import syntheticRouter from './routes/synthetic.js';
 
 const router = Router();
 
@@ -31,6 +33,10 @@ router.post('/auth/login', loginHandler);
 
 // Public feature flags — no auth required
 router.get('/flags', flagsHandler);
+
+// Public SLI/SLO endpoints — no auth required, mount BEFORE requireAuth
+router.use('/metrics', metricsRouter);
+router.use('/synthetic', syntheticRouter);
 
 // Global auth middleware — all routes below require a valid JWT cookie
 router.use(requireAuth);

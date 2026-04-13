@@ -20,6 +20,7 @@ import { and, eq } from 'drizzle-orm';
 import { pool } from '../../db/index.js';
 import { withCurrentTenant } from '../../lib/tenant-context.js';
 import * as schema from '../../db/schema.js';
+import { onboardingTransitionTotal } from '../../lib/metrics.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ function redactBody(value) {
 
 // PUT /onboarding/state/:uuid
 router.put('/state/:uuid', async (req, res) => {
+  const startMs = Date.now();
   const { uuid } = req.params;
   const callerTenantId = req.tenantId;
   const { state } = req.body || {};
@@ -69,6 +71,15 @@ router.put('/state/:uuid', async (req, res) => {
 
     if (updated.length > 0) {
       // Same-tenant hit — success
+      onboardingTransitionTotal.inc({ outcome: 'success' });
+      console.log(JSON.stringify({
+        event: 'onboarding.transition',
+        outcome: 'success',
+        tenantId: callerTenantId,
+        userId: req.user?.userId ?? null,
+        latencyMs: Date.now() - startMs,
+        ts: new Date().toISOString(),
+      }));
       return res.json({ id: updated[0].id });
     }
 
@@ -98,6 +109,15 @@ router.put('/state/:uuid', async (req, res) => {
     // UUID does not exist in any tenant — 404
     return res.status(404).json({ error: 'Onboarding state not found' });
   } catch (err) {
+    onboardingTransitionTotal.inc({ outcome: 'failed' });
+    console.log(JSON.stringify({
+      event: 'onboarding.transition',
+      outcome: 'failed',
+      tenantId: callerTenantId,
+      userId: req.user?.userId ?? null,
+      latencyMs: Date.now() - startMs,
+      ts: new Date().toISOString(),
+    }));
     console.error('[onboarding] PUT /state/:uuid error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
