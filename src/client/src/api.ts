@@ -1,4 +1,4 @@
-import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags } from './types.ts';
+import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload } from './types.ts';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -75,4 +75,10 @@ export const api = {
 
   getFlags: (): Promise<FeatureFlags> =>
     request('/api/flags'),
+
+  submitVocReport: (payload: VocReportPayload): Promise<{ ok: boolean }> =>
+    request('/api/voc/report', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };

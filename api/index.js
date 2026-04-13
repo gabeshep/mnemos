@@ -18,6 +18,7 @@ import sessionsRouter from './routes/sessions.js';
 import onboardingRouter from './routes/onboarding.js';
 import flagsHandler from './routes/flags.js';
 import telemetryRouter from './routes/telemetry.js';
+import vocRouter from './routes/voc.js';
 import metricsRouter from './routes/metrics.js';
 import syntheticRouter from './routes/synthetic.js';
 
@@ -55,5 +56,6 @@ router.use('/captures', capturesRouter);
 router.use('/sessions', sessionsRouter);
 router.use('/onboarding', onboardingRouter);
 router.use('/telemetry', telemetryRouter);
+router.use('/voc', vocRouter);
 
 export default router;
