@@ -43,6 +43,88 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /sessions/search
+router.get('/search', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const entityId = typeof req.query.entityId === 'string' ? req.query.entityId.trim() : null;
+
+  if (!q) {
+    return res.status(400).json({ error: 'q is required' });
+  }
+  if (q.length > 500) {
+    return res.status(400).json({ error: 'q must be 500 characters or fewer' });
+  }
+
+  try {
+    const rows = await withCurrentTenant(async (client) => {
+      let sql;
+      let params;
+
+      if (entityId) {
+        sql = `
+          SELECT s.id AS session_id, s.title, s.entity_id, s.status, s.created_at,
+                 sm.id AS message_id, sm.role, sm.created_at AS message_created_at,
+                 ts_headline('english', sm.content, plainto_tsquery('english', $1),
+                             'MaxWords=20, MinWords=10, MaxFragments=1') AS snippet
+          FROM session_message sm
+          JOIN session s ON s.id = sm.session_id
+          WHERE to_tsvector('english', sm.content) @@ plainto_tsquery('english', $1)
+            AND s.entity_id = $2
+          ORDER BY s.created_at DESC, sm.created_at ASC
+          LIMIT 150
+        `;
+        params = [q, entityId];
+      } else {
+        sql = `
+          SELECT s.id AS session_id, s.title, s.entity_id, s.status, s.created_at,
+                 sm.id AS message_id, sm.role, sm.created_at AS message_created_at,
+                 ts_headline('english', sm.content, plainto_tsquery('english', $1),
+                             'MaxWords=20, MinWords=10, MaxFragments=1') AS snippet
+          FROM session_message sm
+          JOIN session s ON s.id = sm.session_id
+          WHERE to_tsvector('english', sm.content) @@ plainto_tsquery('english', $1)
+          ORDER BY s.created_at DESC, sm.created_at ASC
+          LIMIT 150
+        `;
+        params = [q];
+      }
+
+      const result = await client.query(sql, params);
+      return result.rows;
+    });
+
+    // Group by sessionId, take first 3 messages per session, cap at 50 sessions
+    const sessionMap = new Map();
+    for (const row of rows) {
+      if (!sessionMap.has(row.session_id)) {
+        sessionMap.set(row.session_id, {
+          sessionId: row.session_id,
+          title: row.title,
+          entityId: row.entity_id,
+          status: row.status,
+          createdAt: row.created_at,
+          matchingMessages: [],
+        });
+      }
+      const entry = sessionMap.get(row.session_id);
+      if (entry.matchingMessages.length < 3) {
+        entry.matchingMessages.push({
+          messageId: row.message_id,
+          role: row.role,
+          snippet: row.snippet,
+          createdAt: row.message_created_at,
+        });
+      }
+    }
+
+    const results = Array.from(sessionMap.values()).slice(0, 50);
+    return res.json(results);
+  } catch (err) {
+    console.error('[sessions] GET /search error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /sessions/:sessionId
 router.get('/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
