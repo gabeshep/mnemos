@@ -8,7 +8,7 @@
  */
 
 import { Router } from 'express';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, desc } from 'drizzle-orm';
 import { withCurrentTenant } from '../../lib/tenant-context.js';
 import * as schema from '../../db/schema.js';
 import { buildInjectionPlan, MAX_ASSET_TOKENS } from '../../lib/token-counter.js';
@@ -20,8 +20,8 @@ const router = Router();
 // GET /sessions
 router.get('/', async (req, res) => {
   try {
-    const sessions = await withCurrentTenant(async (_client, tdb) => {
-      return tdb
+    const result = await withCurrentTenant(async (client, tdb) => {
+      const sessions = await tdb
         .select({
           id: schema.session.id,
           entityId: schema.session.entityId,
@@ -33,10 +33,54 @@ router.get('/', async (req, res) => {
           contextTokenCount: schema.session.contextTokenCount,
         })
         .from(schema.session)
-        .orderBy(schema.session.createdAt);
+        .orderBy(desc(schema.session.createdAt))
+        .limit(100);
+
+      // Collect all unique version IDs across all sessions
+      const allVersionIds = [...new Set(sessions.flatMap(s => s.seedAssetVersions))];
+
+      // Batch fetch version + asset info
+      let versionMap = new Map();
+      if (allVersionIds.length > 0) {
+        const versionRows = await tdb
+          .select({
+            id: schema.assetVersion.id,
+            assetId: schema.assetVersion.assetId,
+            assetName: schema.asset.name,
+            assetType: schema.asset.assetType,
+            versionNumber: schema.assetVersion.versionNumber,
+          })
+          .from(schema.assetVersion)
+          .innerJoin(schema.asset, eq(schema.assetVersion.assetId, schema.asset.id))
+          .where(inArray(schema.assetVersion.id, allVersionIds));
+        for (const v of versionRows) {
+          versionMap.set(v.id, v);
+        }
+      }
+
+      // Batch fetch capture counts per session
+      const sessionIds = sessions.map(s => s.id);
+      let captureCountMap = new Map();
+      if (sessionIds.length > 0) {
+        const countRows = await client.query(
+          `SELECT session_id, COUNT(*)::int AS cnt FROM capture WHERE session_id = ANY($1) GROUP BY session_id`,
+          [sessionIds]
+        );
+        for (const row of countRows.rows) {
+          captureCountMap.set(row.session_id, row.cnt);
+        }
+      }
+
+      return sessions.map(s => ({
+        ...s,
+        captureCount: captureCountMap.get(s.id) ?? 0,
+        seedVersionSummary: s.seedAssetVersions
+          .map(id => versionMap.get(id))
+          .filter(Boolean),
+      }));
     });
 
-    return res.json(sessions);
+    return res.json(result);
   } catch (err) {
     console.error('[sessions] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -151,7 +195,22 @@ router.get('/:sessionId', async (req, res) => {
         .where(eq(schema.sessionMessage.sessionId, sessionId))
         .orderBy(schema.sessionMessage.createdAt);
 
-      return { ...sessionRecord, messages };
+      let seedVersionDetails = [];
+      if (sessionRecord.seedAssetVersions.length > 0) {
+        seedVersionDetails = await tdb
+          .select({
+            id: schema.assetVersion.id,
+            assetId: schema.assetVersion.assetId,
+            assetName: schema.asset.name,
+            assetType: schema.asset.assetType,
+            versionNumber: schema.assetVersion.versionNumber,
+          })
+          .from(schema.assetVersion)
+          .innerJoin(schema.asset, eq(schema.assetVersion.assetId, schema.asset.id))
+          .where(inArray(schema.assetVersion.id, sessionRecord.seedAssetVersions));
+      }
+
+      return { ...sessionRecord, messages, seedVersionDetails };
     });
 
     if (!result) {
@@ -161,6 +220,36 @@ router.get('/:sessionId', async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error('[sessions] GET /:sessionId error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /sessions/:sessionId
+router.patch('/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.length > 255) {
+    return res.status(400).json({ error: 'title must be a non-empty string of 255 characters or fewer' });
+  }
+
+  try {
+    const updated = await withCurrentTenant(async (_client, tdb) => {
+      const rows = await tdb
+        .update(schema.session)
+        .set({ title })
+        .where(eq(schema.session.id, sessionId))
+        .returning();
+      return rows[0] ?? null;
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    return res.json(updated);
+  } catch (err) {
+    console.error('[sessions] PATCH /:sessionId error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

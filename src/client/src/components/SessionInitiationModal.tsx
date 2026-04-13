@@ -227,6 +227,7 @@ export function SessionInitiationModal({ onClose, onSessionCreated }: SessionIni
                               <span className="ml-2 text-xs text-gray-400 bg-gray-100 rounded px-1 py-0.5">
                                 {v.assetType}
                               </span>
+                              <span className="ml-1 text-xs text-gray-400">v{v.versionNumber}</span>
                             </div>
                             <span className="text-xs text-gray-400 shrink-0">
                               ~{v.estimatedTokens.toLocaleString()} tokens

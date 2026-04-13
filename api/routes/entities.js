@@ -105,6 +105,7 @@ router.get('/:entityId/published-versions', async (req, res) => {
           assetId: schema.assetVersion.assetId,
           assetName: schema.asset.name,
           assetType: schema.asset.assetType,
+          versionNumber: schema.assetVersion.versionNumber,
           content: schema.assetVersion.content,
           publishedAt: schema.assetVersion.publishedAt,
         })
@@ -130,6 +131,7 @@ router.get('/:entityId/published-versions', async (req, res) => {
       assetId: row.assetId,
       assetName: row.assetName,
       assetType: row.assetType,
+      versionNumber: row.versionNumber,
       estimatedTokens: estimateTokens(row.content),
       publishedAt: row.publishedAt,
     }));

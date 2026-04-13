@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
-import type { Session, SessionMessage, ApiError } from '../types.ts';
+import type { Session, SessionMessage, ApiError, SeedVersionSummary } from '../types.ts';
 import { CaptureModal } from '../components/CaptureModal.tsx';
 import { ErrorNotification } from '../components/ErrorNotification.tsx';
 
@@ -23,7 +23,18 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
   const [sendErrorRetryable, setSendErrorRetryable] = useState<boolean | undefined>(undefined);
   const [sendErrorRetryAfter, setSendErrorRetryAfter] = useState<number | null | undefined>(undefined);
 
+  // Inline title editing
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+
+  // Text-selection capture
+  const [selectionCapture, setSelectionCapture] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  // Seed assets collapsible
+  const [seedsExpanded, setSeedsExpanded] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.getSession(sessionId)
@@ -39,10 +50,17 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  function handleCaptureClick(msg: SessionMessage) {
-    setCaptureContent(msg.content);
-    setCaptureSuccess(false);
-  }
+  // Clear selection capture on mousedown outside floating button
+  useEffect(() => {
+    function handleDocMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      // If clicking the floating capture button itself, don't clear (handled by onMouseDown there)
+      if (target.closest('[data-floating-capture]')) return;
+      setSelectionCapture(null);
+    }
+    document.addEventListener('mousedown', handleDocMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocMouseDown);
+  }, []);
 
   function handleCaptureSuccess() {
     setCaptureContent(null);
@@ -67,7 +85,6 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
       setSendErrorCode(apiErr.code);
       setSendErrorRetryable(apiErr.retryable);
       setSendErrorRetryAfter(apiErr.retryAfter);
-      // Restore input so user doesn't lose their message
       setMessageInput(content);
     } finally {
       setSending(false);
@@ -79,6 +96,72 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
       e.preventDefault();
       handleSendMessage();
     }
+  }
+
+  // Title editing
+  function startTitleEdit() {
+    if (!session) return;
+    setTitleDraft(session.title ?? '');
+    setTitleEditing(true);
+  }
+
+  async function saveTitleEdit() {
+    if (!session) return;
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleEditing(false);
+      return;
+    }
+    try {
+      const updated = await api.updateSessionTitle(session.id, trimmed);
+      setSession(prev => prev ? { ...prev, title: updated.title } : prev);
+    } catch (_err) {
+      // ignore — keep original title
+    } finally {
+      setTitleEditing(false);
+    }
+  }
+
+  function cancelTitleEdit() {
+    setTitleEditing(false);
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitleEdit();
+    } else if (e.key === 'Escape') {
+      cancelTitleEdit();
+    }
+  }
+
+  // Text-selection capture handler
+  function handleMessagesMouseUp() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.toString().trim() === '') {
+      setSelectionCapture(null);
+      return;
+    }
+    // Check that the selection anchor is inside an assistant message
+    const anchor = sel.anchorNode;
+    if (!anchor) {
+      setSelectionCapture(null);
+      return;
+    }
+    const anchorEl = anchor.nodeType === Node.ELEMENT_NODE
+      ? (anchor as HTMLElement)
+      : anchor.parentElement;
+    if (!anchorEl?.closest('[data-role="assistant-message"]')) {
+      setSelectionCapture(null);
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    setSelectionCapture({
+      text: sel.toString().trim(),
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
   }
 
   if (loading) {
@@ -98,6 +181,9 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
   }
 
   const isActive = session.status === 'active';
+  const seedDetails: SeedVersionSummary[] = session.seedVersionDetails ?? [];
+  const showCollapsible = seedDetails.length > 3;
+  const visibleSeeds = showCollapsible && !seedsExpanded ? seedDetails.slice(0, 3) : seedDetails;
 
   return (
     <div className="flex flex-col h-full">
@@ -108,12 +194,27 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
         ← Back to sessions
       </button>
 
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          {session.title ?? 'Untitled session'}
-        </h1>
+      <div className="flex items-center justify-between mb-2">
+        {titleEditing ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={e => setTitleDraft(e.target.value)}
+            onBlur={saveTitleEdit}
+            onKeyDown={handleTitleKeyDown}
+            className="text-2xl font-semibold text-gray-900 border-b-2 border-indigo-400 focus:outline-none bg-transparent flex-1 mr-4"
+          />
+        ) : (
+          <h1
+            className="text-2xl font-semibold text-gray-900 cursor-pointer hover:text-indigo-700 transition-colors"
+            onClick={startTitleEdit}
+            title="Click to edit title"
+          >
+            {session.title ?? 'Untitled session'}
+          </h1>
+        )}
         <span
-          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+          className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
             session.status === 'active'
               ? 'bg-green-100 text-green-700'
               : 'bg-gray-100 text-gray-500'
@@ -122,6 +223,29 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
           {session.status}
         </span>
       </div>
+
+      {/* Seeded assets context header */}
+      {seedDetails.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="text-gray-500 font-medium mr-1">Context:</span>
+          {visibleSeeds.map(v => (
+            <span
+              key={v.id}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100"
+            >
+              {v.assetName} v{v.versionNumber}
+            </span>
+          ))}
+          {showCollapsible && (
+            <button
+              onClick={() => setSeedsExpanded(x => !x)}
+              className="text-xs text-indigo-500 hover:text-indigo-700 underline ml-1"
+            >
+              {seedsExpanded ? 'Show less' : `+${seedDetails.length - 3} more`}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Excluded assets banner */}
       {session.excludedAssetVersions && session.excludedAssetVersions.length > 0 && (
@@ -140,36 +264,57 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
         <p className="text-sm text-gray-400 mb-4">No messages in this session yet. Send a message to get started.</p>
       )}
 
-      <div className="space-y-4 flex-1 overflow-y-auto mb-4">
+      <div
+        ref={messagesContainerRef}
+        className="space-y-4 flex-1 overflow-y-auto mb-4"
+        onMouseUp={handleMessagesMouseUp}
+      >
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`group relative max-w-[80%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${
-                msg.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-br-sm'
-                  : 'bg-white border text-gray-800 rounded-bl-sm shadow-sm'
-              }`}
-            >
-              {msg.content}
-
-              {/* Capture button — only on assistant messages */}
-              {msg.role === 'assistant' && (
-                <button
-                  onClick={() => handleCaptureClick(msg)}
-                  className="mt-2 flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Capture this content to an asset"
-                >
-                  <span>⊕</span> Capture to asset
-                </button>
-              )}
-            </div>
+            {msg.role === 'assistant' ? (
+              <div
+                data-role="assistant-message"
+                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap bg-white border text-gray-800 rounded-bl-sm shadow-sm"
+              >
+                {msg.content}
+              </div>
+            ) : (
+              <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap bg-indigo-600 text-white rounded-br-sm">
+                {msg.content}
+              </div>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Floating text-selection capture button */}
+      {selectionCapture !== null && (
+        <div
+          data-floating-capture
+          style={{
+            position: 'fixed',
+            left: selectionCapture.x,
+            top: selectionCapture.y - 40,
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+          }}
+        >
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setCaptureContent(selectionCapture.text);
+              setSelectionCapture(null);
+            }}
+            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+          >
+            ⊕ Capture to asset
+          </button>
+        </div>
+      )}
 
       <ErrorNotification
         error={sendError}
@@ -212,6 +357,7 @@ export function SessionDetailPage({ sessionId, onBack }: SessionDetailPageProps)
           content={captureContent}
           onClose={() => setCaptureContent(null)}
           onSuccess={handleCaptureSuccess}
+          entityId={session.entityId}
         />
       )}
     </div>
