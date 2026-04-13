@@ -1,4 +1,4 @@
-import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError } from './types.ts';
+import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags } from './types.ts';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -66,4 +66,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ content }),
     }),
+
+  saveOnboardingState: (uuid: string, state: Record<string, unknown>): Promise<{ id: string }> =>
+    request(`/api/onboarding/state/${uuid}`, {
+      method: 'PUT',
+      body: JSON.stringify({ state }),
+    }),
+
+  getFlags: (): Promise<FeatureFlags> =>
+    request('/api/flags'),
 };

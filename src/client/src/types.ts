@@ -72,6 +72,12 @@ export interface ApiError extends Error {
   retryAfter?: number | null;
 }
 
+export type OnboardingStepStatus = 'incomplete' | 'loading' | 'complete' | 'error';
+
+export interface FeatureFlags {
+  onboarding_inline_errors: boolean;
+}
+
 export interface CaptureResult {
   capture: {
     id: string;
