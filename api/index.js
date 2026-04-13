@@ -16,6 +16,8 @@ import assetsRouter from './routes/assets.js';
 import capturesRouter from './routes/captures.js';
 import sessionsRouter from './routes/sessions.js';
 import onboardingRouter from './routes/onboarding.js';
+import flagsHandler from './routes/flags.js';
+import telemetryRouter from './routes/telemetry.js';
 
 const router = Router();
 
@@ -26,6 +28,9 @@ router.get('/health', (_req, res) => {
 
 // Public route — mount BEFORE global requireAuth
 router.post('/auth/login', loginHandler);
+
+// Public feature flags — no auth required
+router.get('/flags', flagsHandler);
 
 // Global auth middleware — all routes below require a valid JWT cookie
 router.use(requireAuth);
@@ -43,5 +48,6 @@ router.use('/assets', assetsRouter);
 router.use('/captures', capturesRouter);
 router.use('/sessions', sessionsRouter);
 router.use('/onboarding', onboardingRouter);
+router.use('/telemetry', telemetryRouter);
 
 export default router;
