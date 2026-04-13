@@ -7,7 +7,7 @@
  */
 
 import { Router } from 'express';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { withCurrentTenant } from '../../lib/tenant-context.js';
 import * as schema from '../../db/schema.js';
 import { estimateTokens } from '../../lib/token-counter.js';
@@ -41,8 +41,8 @@ router.get('/:entityId/assets', async (req, res) => {
   const { entityId } = req.params;
 
   try {
-    const assets = await withCurrentTenant(async (_client, tdb) => {
-      return tdb
+    const result = await withCurrentTenant(async (_client, tdb) => {
+      const assets = await tdb
         .select({
           id: schema.asset.id,
           name: schema.asset.name,
@@ -52,9 +52,30 @@ router.get('/:entityId/assets', async (req, res) => {
         .from(schema.asset)
         .where(eq(schema.asset.entityId, entityId))
         .orderBy(schema.asset.name);
+
+      if (assets.length === 0) return assets.map(a => ({ ...a, latestVersion: null }));
+
+      const assetIds = assets.map(a => a.id);
+      const allVersions = await tdb.select({
+        id: schema.assetVersion.id,
+        assetId: schema.assetVersion.assetId,
+        versionNumber: schema.assetVersion.versionNumber,
+        state: schema.assetVersion.state,
+        createdAt: schema.assetVersion.createdAt,
+      })
+        .from(schema.assetVersion)
+        .where(inArray(schema.assetVersion.assetId, assetIds))
+        .orderBy(desc(schema.assetVersion.versionNumber));
+
+      const latestMap = new Map();
+      for (const v of allVersions) {
+        if (!latestMap.has(v.assetId)) latestMap.set(v.assetId, v);
+      }
+
+      return assets.map(a => ({ ...a, latestVersion: latestMap.get(a.id) ?? null }));
     });
 
-    return res.json(assets);
+    return res.json(result);
   } catch (err) {
     console.error('[entities] GET /:entityId/assets error:', err);
     return res.status(500).json({ error: 'Internal server error' });

@@ -2,16 +2,26 @@ import React from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
+  onNavigate?: (view: string) => void;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, onNavigate }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-3 flex items-center gap-6">
         <span className="font-semibold text-gray-900 tracking-tight">Mnemos</span>
-        <a href="/" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+        <button
+          onClick={() => onNavigate?.('sessions')}
+          className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+        >
           Sessions
-        </a>
+        </button>
+        <button
+          onClick={() => onNavigate?.('assets')}
+          className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          Assets
+        </button>
       </nav>
       <main className="max-w-4xl mx-auto px-6 py-8">{children}</main>
     </div>
