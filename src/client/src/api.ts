@@ -1,4 +1,4 @@
-import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload } from './types.ts';
+import type { Entity, Asset, AssetVersion, Session, CaptureResult, PublishedAssetVersion, CreateSessionResponse, SendMessageResponse, ApiError, FeatureFlags, VocReportPayload, SessionSearchResult } from './types.ts';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -81,4 +81,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  searchSessions: (q: string, entityId?: string): Promise<SessionSearchResult[]> => {
+    const params = new URLSearchParams({ q });
+    if (entityId) params.set('entityId', entityId);
+    return request(`/api/sessions/search?${params}`);
+  },
 };

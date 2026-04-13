@@ -65,6 +65,22 @@ export interface SendMessageResponse {
   assistantMessage: SessionMessage;
 }
 
+export interface MessageSnippet {
+  messageId: string;
+  role: 'user' | 'assistant';
+  snippet: string;
+  createdAt: string;
+}
+
+export interface SessionSearchResult {
+  sessionId: string;
+  title: string | null;
+  entityId: string;
+  status: 'active' | 'closed';
+  createdAt: string;
+  matchingMessages: MessageSnippet[];
+}
+
 export interface ApiError extends Error {
   status: number;
   code?: string;
