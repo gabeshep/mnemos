@@ -118,6 +118,13 @@ export interface SessionSearchResult {
   matchingMessages: MessageSnippet[];
 }
 
+export interface User {
+  id: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
+  tenantId: string;
+}
+
 export interface ApiError extends Error {
   status: number;
   code?: string;

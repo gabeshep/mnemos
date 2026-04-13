@@ -73,6 +73,14 @@ Follow these steps to run Mnemos on your Mac.
    npm run seed
    ```
 
+### Logging in
+
+After seeding, use these credentials to sign in:
+
+- **Email:** `seed@permaship.dev`
+- **Password:** `seed-password-dev`
+- **Workspace:** `permaship`
+
 6. **Start the development server**
 
    ```
