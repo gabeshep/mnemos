@@ -14,6 +14,7 @@ import {
   timestamp,
   integer,
   unique,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -146,7 +147,25 @@ export const onboardingState = pgTable('onboarding_state', {
   state:     jsonb('state').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  version:   integer('version').notNull().default(1),
 });
+
+// ---------------------------------------------------------------------------
+// idempotency_record
+// ---------------------------------------------------------------------------
+
+export const idempotencyRecord = pgTable('idempotency_record', {
+  tenantId:       uuid('tenant_id').notNull().references(() => tenant.id, { onDelete: 'cascade' }),
+  idempotencyKey: text('idempotency_key').notNull(),
+  requestPath:    text('request_path').notNull(),
+  status:         text('status').notNull().default('processing'),
+  responseStatus: integer('response_status'),
+  responseBody:   jsonb('response_body'),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt:      timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.tenantId, t.idempotencyKey] }),
+}));
 
 // ---------------------------------------------------------------------------
 // capture
