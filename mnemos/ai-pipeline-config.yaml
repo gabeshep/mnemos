@@ -1,0 +1,101 @@
+version: "1.0"
+project: mnemos
+description: >
+  Pipeline prompt configuration for the Mnemos project.
+  Defines additional rules injected into subagent prompts to enforce
+  project-specific quality standards.
+
+subagents:
+
+  code_review:
+    additional_rules:
+      - rule_id: "async-ui-state-visibility"
+        severity: "required_changes"
+        scope: "src/client/src/"
+        applies_to: "React components (.tsx files)"
+        description: >
+          You MUST flag and request changes for any React component
+          (in src/client/src/) that introduces an asynchronous operation —
+          including fetch(), axios calls, useMutation(), useQuery(), or any
+          equivalent data-fetching or data-mutating pattern — that does not
+          explicitly render all three of:
+          (1) a loading state (spinner, skeleton, disabled button, etc.),
+          (2) an error state (user-readable message, not silent failure),
+          (3) a success or completion state.
+          This rule is motivated by a 38% onboarding drop-off caused by
+          silent async failures (ticket a466cf13).
+        exemptions:
+          - "Synchronous UI components with no async operations"
+          - "Static asset rendering (images, icons, SVG)"
+          - "CSS or Tailwind style-only changes"
+          - "Read-only display components that do not fetch or mutate data"
+          - "Backend files outside src/client/src/ (Express routes, migrations, schema)"
+        guidance: >
+          If the component uses async operations but the loading/error/success
+          states are managed in a parent component or custom hook that is clearly
+          visible in the PR diff, do not flag it — only flag cases where no
+          visible state handling exists anywhere in the async call chain.
+
+  prd_generation:
+    acceptance_criteria_appendix:
+      applies_to: "ui_features"
+      condition: >
+        Append this section when the ticket describes any user-facing feature
+        that involves asynchronous operations (form submissions, API calls,
+        data loading). Do not append for backend-only tickets (schema changes,
+        migrations, API-only endpoints with no frontend surface).
+      state_visibility:
+        section_title: "State Visibility & Error Handling"
+        instruction: >
+          The following acceptance criteria are mandatory for all UI features
+          involving asynchronous operations. They must appear as a named
+          subsection within the ticket's Acceptance Criteria block.
+        criteria:
+          - id: "sv-loading"
+            text: >
+              [ ] While the async operation is in flight, the UI displays a
+              visible loading indicator (e.g., spinner, skeleton screen, or
+              disabled/loading button state). The user cannot submit the form
+              or trigger the action twice during this period.
+          - id: "sv-error"
+            text: >
+              [ ] If the async operation fails (network error, 4xx/5xx response,
+              validation error), the UI displays a user-readable error message
+              inline (not a raw error object, not a silent no-op). The message
+              must describe what went wrong in plain language and, where possible,
+              suggest a recovery action.
+          - id: "sv-success"
+            text: >
+              [ ] Upon successful completion of the async operation, the UI
+              provides clear confirmation (e.g., success toast, navigates to
+              result, updates the relevant UI element). The user has no ambiguity
+              about whether the action succeeded.
+
+evaluation:
+  description: >
+    Sample fixtures for manually validating the async-ui-state-visibility rule.
+    These represent historical Mnemos PR archetypes used to calibrate the
+    code_review subagent and guard against false positives.
+  fixtures:
+    - fixture_id: "ev-001"
+      name: "Onboarding form submission without error state"
+      description: >
+        A PR modifying OnboardingChecklist.tsx to add a form submission that
+        calls POST /api/onboarding/steps using fetch(), but only updates local
+        state on success. No loading spinner is rendered during the request.
+        No error state is rendered when the request fails. This is representative
+        of the pattern that caused the 38% drop-off (ticket a466cf13).
+      expected_outcome: "flag"
+      rationale: >
+        Async mutation (fetch POST) with no loading or error state rendered —
+        exactly the silent-failure anti-pattern this rule targets.
+    - fixture_id: "ev-002"
+      name: "Tailwind spacing adjustment on SessionDetailPage"
+      description: >
+        A PR modifying SessionDetailPage.tsx to change padding and font-size
+        Tailwind classes (e.g., p-4 to p-6, text-sm to text-base). No fetch()
+        calls, no mutations, no async logic is added or modified.
+      expected_outcome: "pass"
+      rationale: >
+        CSS/style-only change with no async operations introduced — must not
+        be flagged to avoid review bloat (explicit exemption applies).
